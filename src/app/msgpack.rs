@@ -206,7 +206,7 @@ pub struct MsgPackProtocolHandler {
     session_tx: Option<Arc<Mutex<tokio::sync::mpsc::UnboundedSender<crate::app::AppMessage>>>>,
     session_id: Option<u8>,
     app_ready_received: Arc<AtomicBool>,
-    hid_tx: Option<tokio::sync::mpsc::UnboundedSender<iap2_rs::HidCommand>>,
+    hid_tx: Option<tokio::sync::mpsc::UnboundedSender<crate::avrcp::AvrcpAction>>,
 }
 
 impl MsgPackProtocolHandler {
@@ -272,7 +272,7 @@ impl MsgPackProtocolHandler {
         self.session_id = Some(session_id);
     }
 
-    pub fn set_hid_tx(&mut self, sender: tokio::sync::mpsc::UnboundedSender<iap2_rs::HidCommand>) {
+    pub fn set_hid_tx(&mut self, sender: tokio::sync::mpsc::UnboundedSender<crate::avrcp::AvrcpAction>) {
         self.hid_tx = Some(sender);
     }
 
@@ -641,7 +641,7 @@ impl MsgPackProtocolHandler {
                 debug!("Handling msgpack call: {} -> {}", id, method);
 
                 if method.starts_with("media.control.") {
-                    let cmd = crate::app::hid_mapping::method_to_hid_command(&method);
+                    let cmd = crate::app::hid_mapping::method_to_avrcp_action(&method);
                     return Ok(Some(match cmd {
                         Some(cmd) => match &self.hid_tx {
                             Some(tx) => match tx.send(cmd) {

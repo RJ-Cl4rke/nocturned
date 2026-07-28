@@ -1,6 +1,7 @@
 mod ab;
 mod app;
 pub mod audio;
+mod avrcp;
 mod bluetooth;
 mod bluetooth_agent;
 mod brightness;

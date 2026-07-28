@@ -7,8 +7,8 @@ use bluer::{rfcomm::Stream, Address};
 use bytes::Bytes;
 use iap2_rs::{
     connect, ConnectionConfig, ConnectionEvent, DeviceIdentification, FileTransferConfig,
-    HidCommand, HidComponent, HidConfig, HidFunction, Iap2Config, Iap2Connection as LibConnection,
-    LinkConfig, NowPlayingConfig, PowerConfig,
+    HidComponent, HidConfig, HidFunction, Iap2Config, Iap2Connection as LibConnection, LinkConfig,
+    NowPlayingConfig, PowerConfig,
 };
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{debug, error, info, warn};
@@ -215,8 +215,8 @@ async fn run_iap2_connection(
     stream: Stream,
     websocket_server: Option<Arc<WebSocketServer>>,
     mut websocket_rx: mpsc::UnboundedReceiver<AppMessage>,
-    hid_tx: mpsc::UnboundedSender<HidCommand>,
-    mut hid_rx: mpsc::UnboundedReceiver<HidCommand>,
+    hid_tx: mpsc::UnboundedSender<crate::avrcp::AvrcpAction>,
+    mut hid_rx: mpsc::UnboundedReceiver<crate::avrcp::AvrcpAction>,
     running: Arc<Mutex<bool>>,
     ready_tx: tokio::sync::oneshot::Sender<Result<()>>,
     mut audio_event_rx: broadcast::Receiver<AudioEvent>,
@@ -411,6 +411,7 @@ async fn run_iap2_connection(
                         &ea_session_tx,
                         &websocket_server,
                         &lib_conn,
+                        device_address,
                     ).await {
                         error!("Failed to handle WebSocket message: {}", e);
                     }
@@ -419,9 +420,9 @@ async fn run_iap2_connection(
 
             hid_cmd = hid_rx.recv() => {
                 if let Some(cmd) = hid_cmd {
-                    info!("Sending HID command: {:?}", cmd);
-                    if let Err(e) = lib_conn.send_hid_command(cmd) {
-                        error!("Failed to send HID command: {}", e);
+                    info!("Sending AVRCP command: {:?}", cmd);
+                    if let Err(e) = crate::avrcp::send(device_address, cmd).await {
+                        error!("Failed to send AVRCP command: {}", e);
                     }
                 }
             }
@@ -791,6 +792,7 @@ async fn handle_websocket_message_new(
     ea_session_tx: &Option<mpsc::UnboundedSender<(u8, Bytes)>>,
     websocket_server: &Option<Arc<WebSocketServer>>,
     lib_conn: &LibConnection,
+    device_address: Address,
 ) -> Result<()> {
     info!("Routing WebSocket message: {} ", message.id);
 
@@ -807,11 +809,11 @@ async fn handle_websocket_message_new(
     info!("WebSocket method: {}", method);
 
     if method.starts_with("media.control.") {
-        let cmd = crate::app::hid_mapping::method_to_hid_command(method);
+        let cmd = crate::app::hid_mapping::method_to_avrcp_action(method);
 
         if let Some(cmd) = cmd {
-            info!("Sending HID command for {}", method);
-            match lib_conn.send_hid_command(cmd) {
+            info!("Sending AVRCP command for {}", method);
+            match crate::avrcp::send(device_address, cmd).await {
                 Ok(()) => {
                     if let Some(ws_server) = websocket_server {
                         ws_server
@@ -823,7 +825,7 @@ async fn handle_websocket_message_new(
                     }
                 }
                 Err(e) => {
-                    error!("Failed to send HID command: {}", e);
+                    error!("Failed to send AVRCP command: {}", e);
                     if let Some(ws_server) = websocket_server {
                         ws_server
                             .send_error(message.id.clone(), e.to_string())

@@ -1,16 +1,13 @@
-use iap2_rs::HidCommand;
+use crate::avrcp::AvrcpAction;
 
-pub fn method_to_hid_command(method: &str) -> Option<HidCommand> {
+pub fn method_to_avrcp_action(method: &str) -> Option<AvrcpAction> {
     match method {
-        "media.control.play" => Some(HidCommand::Play),
-        "media.control.pause" => Some(HidCommand::Pause),
-        "media.control.playPause" | "media.control.togglePlayPause" => Some(HidCommand::PlayPause),
-        "media.control.next" => Some(HidCommand::Next),
-        "media.control.previous" | "media.control.prev" => Some(HidCommand::Previous),
-        "media.control.shuffle" => Some(HidCommand::Shuffle),
-        "media.control.repeat" => Some(HidCommand::Repeat),
-        "media.control.volumeUp" => Some(HidCommand::VolumeUp),
-        "media.control.volumeDown" => Some(HidCommand::VolumeDown),
+        "media.control.play" => Some(AvrcpAction::Play),
+        "media.control.pause" => Some(AvrcpAction::Pause),
+        "media.control.next" => Some(AvrcpAction::Next),
+        "media.control.previous" | "media.control.prev" => Some(AvrcpAction::Previous),
+        "media.control.volumeUp" => Some(AvrcpAction::VolumeUp),
+        "media.control.volumeDown" => Some(AvrcpAction::VolumeDown),
         _ => None,
     }
 }
