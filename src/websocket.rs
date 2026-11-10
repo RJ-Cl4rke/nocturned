@@ -2,6 +2,7 @@ use crate::ab;
 use crate::app::AppMessage;
 use crate::error::Result;
 use crate::image_cache::ImageCache;
+use crate::itunes_bridge::ItunesBridge;
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -98,6 +99,7 @@ pub struct WebSocketServer {
     last_app_ready: Arc<RwLock<Option<serde_json::Value>>>,
     last_wakeword_state: Arc<RwLock<Option<bool>>>,
     last_playback_active: Arc<RwLock<bool>>,
+    itunes_bridge: Option<Arc<ItunesBridge>>,
 }
 
 impl WebSocketServer {
@@ -105,6 +107,7 @@ impl WebSocketServer {
         app_manager_tx: mpsc::UnboundedSender<AppMessage>,
         port: u16,
         image_cache: Arc<Mutex<ImageCache>>,
+        itunes_bridge: Option<Arc<ItunesBridge>>,
     ) -> Self {
         Self {
             connections: Arc::new(RwLock::new(HashMap::new())),
@@ -115,6 +118,7 @@ impl WebSocketServer {
             last_app_ready: Arc::new(RwLock::new(None)),
             last_wakeword_state: Arc::new(RwLock::new(None)),
             last_playback_active: Arc::new(RwLock::new(false)),
+            itunes_bridge,
         }
     }
 
@@ -1400,6 +1404,29 @@ impl WebSocketServer {
                     }
 
                     return Ok(());
+                }
+
+                if method.starts_with("media.control.") {
+                    if let Some(bridge) = &self.itunes_bridge {
+                        if let Some(action) =
+                            crate::app::hid_mapping::method_to_avrcp_action(&method)
+                        {
+                            match bridge.send_control(action).await {
+                                Ok(()) => {
+                                    self.send_response(
+                                        id,
+                                        serde_json::json!({"status": "ok", "via": "itunes"}),
+                                    )
+                                    .await;
+                                }
+                                Err(e) => {
+                                    warn!("iTunes bridge control failed: {}", e);
+                                    self.send_error(id, e.to_string()).await;
+                                }
+                            }
+                            return Ok(());
+                        }
+                    }
                 }
 
                 let is_image_fetch = method == "spotify.image.fetch";

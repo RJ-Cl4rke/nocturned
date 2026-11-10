@@ -31,6 +31,10 @@ pub struct DeviceInfoMetadata {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     pub debug_logs: bool,
+    /// Base URL of the Mac-side iTunes bridge helper (e.g. "http://192.168.1.50:8384").
+    /// When unset, media.control.* falls back to the existing Bluetooth AVRCP path.
+    #[serde(default)]
+    pub itunes_bridge_url: Option<String>,
 }
 
 impl Config {

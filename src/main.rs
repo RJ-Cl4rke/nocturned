@@ -9,6 +9,7 @@ mod config;
 mod error;
 mod iap2_wrapper;
 mod image_cache;
+mod itunes_bridge;
 mod mfi;
 mod mfi_impl;
 mod wakeword;
@@ -58,10 +59,16 @@ async fn main() -> Result<()> {
 
     let (ws_to_app_tx, ws_to_app_rx) = mpsc::unbounded_channel();
 
+    let itunes_bridge = config
+        .itunes_bridge_url
+        .clone()
+        .map(|url| Arc::new(itunes_bridge::ItunesBridge::new(url)));
+
     let websocket_server = Arc::new(websocket::WebSocketServer::new(
         ws_to_app_tx,
         5000,
         Arc::clone(&image_cache),
+        itunes_bridge.clone(),
     ));
     let ws_server_clone = Arc::clone(&websocket_server);
 
@@ -72,6 +79,11 @@ async fn main() -> Result<()> {
     });
 
     info!("WebSocket server started on port 5000");
+
+    if let Some(bridge) = itunes_bridge {
+        itunes_bridge::start_polling_task(Arc::clone(&websocket_server), bridge);
+        info!("iTunes bridge polling task started");
+    }
 
     let webapps_dir: PathBuf = std::env::var("NOCTURNE_WEBAPPS_DIR")
         .map(PathBuf::from)
